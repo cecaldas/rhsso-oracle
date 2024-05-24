@@ -1,0 +1,43 @@
+# admin cli commands to edit the configuration
+embed-server --std-out=echo  --server-config=standalone-openshift.xml
+
+###### START driver:oracle
+###### \
+        if (outcome == failed) of /subsystem=datasources/jdbc-driver=oracle:read-resource
+            echo "installing com.oracle jdbc driver"
+            module add --name=com.oracle --resources=/opt/eap/extensions/jdbc/ojdbc8.jar --dependencies=javax.api,javax.resource.api
+            /subsystem=datasources/jdbc-driver=oracle:add(driver-name=oracle,driver-module-name=com.oracle,driver-xa-datasource-class-name=oracle.jdbc.xa.client.OracleXADataSource)
+        end-if
+###### /
+###### END driver:oracle
+
+###### START datasource:KeycloakDS
+###### \
+        if (outcome == success) of /subsystem=datasources/data-source=KeycloakDS:read-resource
+            echo "removing KeycloakDS"
+            /subsystem=datasources/data-source=KeycloakDS:remove()
+        end-if
+        if (outcome == failed) of /subsystem=datasources/data-source=KeycloakDS:read-resource
+            echo "installing KeycloakDS"
+            batch
+            /subsystem=datasources/data-source=KeycloakDS:add( \
+                min-pool-size=${env.MIN_POOLSIZE:5},\
+                max-pool-size=${env.MAX_POOLSIZE:20},\
+                jndi-name=java:jboss/datasources/KeycloakDS, \
+                enabled=true,use-java-context=true, \
+                connection-url="jdbc:oracle:thin:@//${env.ORACLE_SERVICE_HOST}:${env.ORACLE_SERVICE_PORT}/${env.ORACLE_SERVICE_NAME}", \
+                driver-name=oracle, \
+                user-name=${env.ORACLE_USERNAME}, \
+                password=${env.ORACLE_PASSWORD}, \
+                validate-on-match=false, \
+                background-validation=true, \
+                background-validation-millis=60000, \
+                idle-timeout-minutes=${env.ORACLE_KEEPALIVE_TIMEOUT}, \
+                valid-connection-checker-class-name=org.jboss.jca.adapters.jdbc.extensions.oracle.OracleValidConnectionChecker, \
+                exception-sorter-class-name=org.jboss.jca.adapters.jdbc.extensions.oracle.OracleExceptionSorter, \
+                stale-connection-checker-class-name=org.jboss.jca.adapters.jdbc.extensions.oracle.OracleStaleConnectionChecker \
+            )
+            run-batch
+        end-if
+###### /
+###### END datasource:KeycloakDS
